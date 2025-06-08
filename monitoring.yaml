@@ -1,0 +1,3 @@
+# Deploy the Metrics Server in your Kubernetes cluster by applying the latest release components.yaml manifest using the following command:
+
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml

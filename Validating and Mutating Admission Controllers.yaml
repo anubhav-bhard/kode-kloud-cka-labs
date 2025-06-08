@@ -1,0 +1,97 @@
+# Create TLS secret webhook-server-tls for secure webhook communication in webhook-demo namespace.
+
+
+# We have already created below cert and key for webhook server which should be used to create secret.
+
+# Certificate : /root/keys/webhook-server-tls.crt
+
+# Key : /root/keys/webhook-server-tls.key
+
+kubectl -n webhook-demo create secret tls webhook-server-tls \
+    --cert "/root/keys/webhook-server-tls.crt" \
+    --key "/root/keys/webhook-server-tls.key"
+secret/webhook-server-tls created
+
+# Create webhook deployment now.
+
+
+# We have already added sample deployment definition under /root/webhook-deployment.yaml so just create deployment with that definition.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-server
+  namespace: webhook-demo
+  labels:
+    app: webhook-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-server
+  template:
+    metadata:
+      labels:
+        app: webhook-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1234
+      containers:
+      - name: server
+        image: stackrox/admission-controller-webhook-demo:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+          name: webhook-api
+        volumeMounts:
+        - name: webhook-tls-certs
+          mountPath: /run/secrets/tls
+          readOnly: true
+      volumes:
+      - name: webhook-tls-certs
+        secret:
+          secretName: webhook-server-tls
+
+# Create webhook service now so that admission controller can communicate with webhook.
+
+
+# We have already added sample service definition under /root/webhook-service.yaml so just create service with that definition. 
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-server
+  namespace: webhook-demo
+spec:
+  selector:
+    app: webhook-server
+  ports:
+    - port: 443
+      targetPort: webhook-api
+
+# Deploy pod with a securityContext explicitly allowing it to run as root
+
+
+# We have added pod definition file under /root/pod-with-override.yaml
+
+# Validate securityContext after you deploy this pod  
+
+# A pod with a securityContext explicitly allowing it to run as root.
+# The effect of deploying this with and without the webhook is the same. The
+# explicit setting however prevents the webhook from applying more secure
+# defaults.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-override
+  labels:
+    app: pod-with-override
+spec:
+  restartPolicy: OnFailure
+  securityContext:
+    runAsNonRoot: false
+  containers:
+    - name: busybox
+      image: busybox
+      command: ["sh", "-c", "echo I am running as user $(id -u)"]
